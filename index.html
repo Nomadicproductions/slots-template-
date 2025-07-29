@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Slots Logic Only</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #181f11; color: #fff; text-align: center; }
+    .reels-area { display: flex; justify-content: center; margin: 24px 0; }
+    .reel-column { width: 120px; margin: 0 4px; }
+    .symbol { font-size: 2rem; height: 48px; margin: 8px 0; line-height: 48px; background: #333; border-radius: 8px; }
+    .highlight { border: 2px solid gold; }
+    .bottom-ui { margin-top: 24px; }
+    .payout-table { margin-top: 30px; }
+    button:disabled { opacity: 0.5; }
+  </style>
+</head>
+<body>
+  <h1>Slots Logic Only</h1>
+  <div class="reels-area" id="reelsArea"></div>
+  <div class="bottom-ui">
+    <div id="balance">Balance: $10.00</div>
+    <select id="betAmount"></select>
+    <select id="paylinesAmount"></select>
+    <button id="spinBtn">SPIN</button>
+  </div>
+  <div class="payout-table" id="payoutTable"></div>
+  <div id="winMsg"></div>
+
+  <script>
+    // --- SYMBOLS DATA (No asset/image references) ---
+    const symbols = [
+      { name: "A", payouts: [0, 2, 5], chance: 0.10, display: "A" },
+      { name: "K", payouts: [0, 2, 4], chance: 0.11, display: "K" },
+      { name: "Q", payouts: [0, 2, 4], chance: 0.11, display: "Q" },
+      { name: "J", payouts: [0, 2, 3], chance: 0.12, display: "J" },
+      { name: "7", payouts: [0, 5, 10], chance: 0.07, display: "7" },
+      { name: "BAR", payouts: [0, 10, 50], chance: 0.05, display: "BAR" }
+    ];
+
+    // --- PAYLINES (0-indexed grid: [reel, row]) ---
+    const paylines = [
+      [ [0,0], [1,0], [2,0] ],       // Top row
+      [ [0,1], [1,1], [2,1] ],       // Middle row
+      [ [0,2], [1,2], [2,2] ],       // Bottom row
+      [ [0,0], [1,1], [2,2] ],       // Diagonal TL-BR
+      [ [0,2], [1,1], [2,0] ]        // Diagonal BL-TR
+    ];
+
+    const reelsCount = 3;
+    const visibleRows = 3;
+
+    // --- Payout Table UI ---
+    function renderPayoutTable() {
+      const payoutTable = document.getElementById('payoutTable');
+      payoutTable.innerHTML = '<h2>Payouts</h2>';
+      symbols.forEach(sym => {
+        payoutTable.innerHTML += `<div>${sym.display}: 3x = $${sym.payouts[2]}, 2x = $${sym.payouts[1]}</div>`;
+      });
+    }
+
+    // --- SYMBOL RANDOMIZER ---
+    function getRandomSymbolIndex() {
+      let roll = Math.random();
+      let acc = 0;
+      for (let i = 0; i < symbols.length; i++) {
+        acc += symbols[i].chance;
+        if (roll < acc) return i;
+      }
+      return symbols.length - 1;
+    }
+
+    // --- GENERATE REELS GRID ---
+    function generateGrid() {
+      let grid = [];
+      for (let reel = 0; reel < reelsCount; reel++) {
+        grid[reel] = [];
+        for (let row = 0; row < visibleRows; row++) {
+          grid[reel][row] = getRandomSymbolIndex();
+        }
+      }
+      return grid;
+    }
+
+    // --- RENDER REELS UI ---
+    function renderReels(grid, winLines=[]) {
+      const area = document.getElementById('reelsArea');
+      area.innerHTML = '';
+      for (let r = 0; r < reelsCount; r++) {
+        const col = document.createElement('div');
+        col.className = 'reel-column';
+        for (let row = 0; row < visibleRows; row++) {
+          const symDiv = document.createElement('div');
+          symDiv.className = 'symbol';
+          symDiv.textContent = symbols[grid[r][row]].display;
+          // Highlight if in any winline
+          if (winLines.flat().some(([x, y]) => x === r && y === row)) {
+            symDiv.classList.add('highlight');
+          }
+          col.appendChild(symDiv);
+        }
+        area.appendChild(col);
+      }
+    }
+
+    // --- EVALUATE PAYOUT FOR ACTIVE PAYLINES ---
+    function evaluatePayout(grid, bet, activePaylines) {
+      let totalWin = 0;
+      let winLines = [];
+      for (let i = 0; i < activePaylines; i++) {
+        const line = paylines[i];
+        const s0 = grid[line[0][0]][line[0][1]];
+        const s1 = grid[line[1][0]][line[1][1]];
+        const s2 = grid[line[2][0]][line[2][1]];
+        if (s0 === s1 && s1 === s2) {
+          totalWin += symbols[s0].payouts[2] * bet;
+          winLines.push(line);
+        } else if (s0 === s1) {
+          totalWin += symbols[s0].payouts[1] * bet;
+          winLines.push([line[0], line[1]]);
+        }
+      }
+      return { totalWin, winLines };
+    }
+
+    // --- UI SETUP ---
+    const betSelect = document.getElementById('betAmount');
+    for (let i = 1; i <= 10; i++) {
+      let v = (i * 0.2).toFixed(2);
+      betSelect.innerHTML += `<option value="${v}">$${v}</option>`;
+    }
+    const paylinesSelect = document.getElementById('paylinesAmount');
+    for (let i = 1; i <= 5; i++) {
+      paylinesSelect.innerHTML += `<option value="${i}">${i} Payline${i > 1 ? "s" : ""}</option>`;
+    }
+
+    let balance = 10.00;
+    function setBalance(val) {
+      balance = val;
+      document.getElementById('balance').textContent = `Balance: $${balance.toFixed(2)}`;
+    }
+    setBalance(balance);
+
+    // --- SPIN LOGIC ---
+    document.getElementById('spinBtn').onclick = function() {
+      const bet = parseFloat(betSelect.value);
+      const activePaylines = parseInt(paylinesSelect.value, 10);
+      const winMsg = document.getElementById('winMsg');
+      if (balance < bet) {
+        winMsg.textContent = "Insufficient balance!";
+        return;
+      }
+      setBalance(balance - bet);
+      const grid = generateGrid();
+      const { totalWin, winLines } = evaluatePayout(grid, bet, activePaylines);
+      renderReels(grid, winLines);
+      if (totalWin > 0) {
+        setBalance(balance + totalWin);
+        winMsg.textContent = `You win $${totalWin.toFixed(2)}!`;
+      } else {
+        winMsg.textContent = "No win, try again!";
+      }
+    };
+
+    // --- INIT ---
+    renderPayoutTable();
+    renderReels(generateGrid());
+  </script>
+</body>
+</html>
