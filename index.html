@@ -10,7 +10,7 @@
       z-index: 9999;
       top: 0; left: 0;
       width: 100vw; height: 100vh;
-      background: none; /* asset reference removed */
+      background: none;
       display: flex;
       flex-direction: column;
       justify-content: center;
@@ -41,9 +41,24 @@
       font-family: 'Arial', sans-serif;
     }
 
-    /* === Slots Game Styles === */
-    body { background: #181f11; min-height: 100vh; margin: 0; display: flex; flex-direction: column; align-items: center; font-family: 'Segoe UI', Arial, sans-serif; }
-    .slots-bg { position: relative; width: 500px; height: 750px; background: none; box-shadow: 0 6px 40px #011a, 0 1px 15px #000a inset; margin-top: 40px; }
+    body {
+      background: #181f11;
+      min-height: 100vh;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      font-family: 'Segoe UI', Arial, sans-serif;
+    }
+    .slots-bg {
+      position: relative;
+      width: 500px;
+      height: 750px;
+      background: url('assets/file_0000000018e0622f964db4b9c027aeb1.png') no-repeat center center;
+      background-size: contain;
+      box-shadow: 0 6px 40px #011a, 0 1px 15px #000a inset;
+      margin-top: 40px;
+    }
     .paylines-svg { pointer-events: none; position: absolute; left: 52px; top: 315px; width: 395px; height: 215px; z-index: 1; }
     .reels-area { position: absolute; left: 52px; top: 315px; width: 395px; height: 215px; display: flex; justify-content: space-between; z-index: 2; pointer-events: none; }
     .reel-column { width: 120px; height: 215px; overflow: hidden; position: relative; display: flex; flex-direction: column; align-items: center; background: none; }
@@ -132,8 +147,9 @@
 
   <script>
     // ===== LOADING SCREEN LOGIC =====
-    // All asset image references removed
-    const assetImages = [];
+    const assetImages = [
+      "assets/file_0000000018e0622f964db4b9c027aeb1.png"
+    ];
     function preloadImages(imageUrls, onProgress, onComplete) {
       let loaded = 0;
       const total = imageUrls.length;
@@ -196,15 +212,336 @@
     ];
 
     // --- Dynamic Win/Loss Algorithm State ---
-    // ... (rest of your original JS code unchanged, except where it referenced symbol images or asset paths)
+    let algoMode = "loss";
+    let switchThreshold = getRandomThreshold();
+    let balanceAtSwitch = 100.00;
+    function getRandomThreshold() {
+      // *** CHANGED TO $1.50 - $20.00 RANGE ***
+      return +(Math.random() * (20 - 1.5) + 1.5).toFixed(2);
+    }
+    function updateDebugDisplay() {
+      document.getElementById('debug-mode').textContent = (algoMode === 'win' ? 'WIN' : 'LOSS');
+      document.getElementById('debug-thresh').textContent =
+        (algoMode === 'win'
+          ? `+${switchThreshold.toFixed(2)}`
+          : `-${switchThreshold.toFixed(2)}`);
+      document.getElementById('debug-bal').textContent = `$${balanceAtSwitch.toFixed(2)}`;
+    }
+    function pickNextSwitch(balance) {
+      balanceAtSwitch = balance;
+      switchThreshold = getRandomThreshold();
+      updateDebugDisplay();
+    }
+    function checkAlgoSwitch(currentBalance) {
+      const diff = currentBalance - balanceAtSwitch;
+      if (algoMode === "win" && diff >= switchThreshold) {
+        algoMode = "loss";
+        pickNextSwitch(currentBalance);
+      }
+      else if (algoMode === "loss" && diff <= -switchThreshold) {
+        algoMode = "win";
+        pickNextSwitch(currentBalance);
+      }
+      updateDebugDisplay();
+    }
+    // Probability Picker for Symbols based on current algoMode
+    function getRandomSymbolIndex() {
+      let totalChance = 0;
+      symbols.forEach(s => {
+        totalChance += (algoMode === "win" ? s.winChance : s.lossChance);
+      });
+      let r = Math.random() * totalChance;
+      let acc = 0;
+      for (let i = 0; i < symbols.length; i++) {
+        acc += (algoMode === "win" ? symbols[i].winChance : symbols[i].lossChance);
+        if (r < acc) return i;
+      }
+      return symbols.length - 1;
+    }
 
-    // In spinReel, showGrid, payout table, etc, <img src="${symbols[idx].img}" ...> will now just show empty images.
-    // This is correct for now, as you will add your new asset references in the next step.
-    // All game logic, payout, UI, and structure are untouched.
-    // (No asset/image path remains anywhere.)
-    // ... (rest of your original JS logic remains as in your file)
-    // (For brevity, not repeating the rest here since it’s unchanged except for removed asset references.)
-    // ... (see your original for full code)
+    // --- Paylines and UI Setup ---
+    const paylines = [
+      [ [0,1], [1,1], [2,1] ], // Middle row
+      [ [0,0], [1,0], [2,0] ], // Top
+      [ [0,2], [1,2], [2,2] ], // Bottom
+      [ [0,0], [1,1], [2,2] ], // Diagonal TL-BR
+      [ [0,2], [1,1], [2,0] ]  // Diagonal BL-TR
+    ];
+    const paylineColors = [
+      "#1e88e5", // Blue
+      "#e53935", // Red
+      "#43a047", // Green
+      "#fb8c00", // Orange
+      "#8e24aa"  // Purple
+    ];
+    const reelsCount = 3, visibleRows = 3;
+    function getRandomGrid() {
+      const grid = [];
+      for (let reel = 0; reel < reelsCount; reel++) {
+        const col = [];
+        for (let row = 0; row < visibleRows; row++) {
+          col.push(getRandomSymbolIndex());
+        }
+        grid.push(col);
+      }
+      return grid;
+    }
+    function setupUI() {
+      const betSelect = document.getElementById('betAmount');
+      for (let i = 1; i <= 10; i++) {
+        let v = (i * 0.2).toFixed(2);
+        betSelect.innerHTML += `<option value="${v}">$${v}</option>`;
+      }
+      // Insert Paylines dropdown
+      const paylinesSelect = document.createElement('select');
+      paylinesSelect.className = "paylines-ui";
+      paylinesSelect.id = "paylinesAmount";
+      for (let i = 1; i <= 5; i++) {
+        paylinesSelect.innerHTML += `<option value="${i}">${i} Payline${i > 1 ? "s" : ""}</option>`;
+      }
+      document.querySelector('.bottom-ui').insertBefore(paylinesSelect, betSelect.nextSibling);
+
+      let balance = 100.00;
+      function setBalance(val) {
+        balance = Math.round(val * 100) / 100;
+        document.getElementById('balance').textContent = "Balance: $" + balance.toFixed(2);
+      }
+      setBalance(balance);
+      // Set debug display for first time (now that balance is set)
+      updateDebugDisplay();
+
+      const winMsgEl = document.getElementById("winMsg");
+      function showWinMsg(msg) {
+        winMsgEl.textContent = msg;
+        winMsgEl.classList.add("show");
+        setTimeout(() => winMsgEl.classList.remove("show"), 2500);
+      }
+      // SVG Paylines
+      function getCellCenter(reel, row) {
+        const x = (reel * (395/3)) + (395/6);
+        const y = row * 72 + 36;
+        return { x, y };
+      }
+      function renderPaylinesSVG(activeCount, state = "faint", winningIndices = []) {
+        const svg = document.getElementById('paylinesSVG');
+        svg.innerHTML = '';
+        for (let i = 0; i < paylines.length; i++) {
+          if (i >= activeCount) continue;
+          const color = paylineColors[i];
+          let alpha = 0.33;
+          let strokeWidth = 4;
+          if (state === "bright" || (state === "result" && winningIndices.includes(i))) {
+            alpha = 1.0;
+            strokeWidth = 7;
+          }
+          else if (state === "result") {
+            alpha = 0.33;
+            strokeWidth = 4;
+          }
+          const pts = paylines[i].map(([reel, row]) => getCellCenter(reel, row));
+          const pointsStr = pts.map(pt => `${pt.x},${pt.y}`).join(' ');
+          svg.innerHTML += `<polyline points="${pointsStr}" 
+            style="fill:none;stroke:${color};stroke-width:${strokeWidth};stroke-linecap:round;stroke-linejoin:round;stroke-opacity:${alpha};" />`;
+        }
+      }
+      // REEL SPIN & DISPLAY
+      function spinReel(reelIdx, finalSymbols, duration = 1400, delay = 0) {
+        return new Promise(resolve => {
+          const stripDiv = document.querySelector(`#reel${reelIdx} .reel-strip`);
+          let html = '';
+          for (let i = 0; i < visibleRows * 5; i++) {
+            const idx = getRandomSymbolIndex();
+            html += `<div class="sprite"><img src="${symbols[idx].img}" alt=""></div>`;
+          }
+          for (let i = 0; i < visibleRows; i++) {
+            html += `<div class="sprite"><img src="${symbols[finalSymbols[i]].img}" alt=""></div>`;
+          }
+          stripDiv.innerHTML = html;
+          const spriteHeight = 72;
+          const steps = (html.match(/<div class="sprite">/g) || []).length - visibleRows;
+          const finalTop = -steps * spriteHeight;
+          stripDiv.style.transition = "none";
+          stripDiv.style.top = "0px";
+          setTimeout(() => {
+            stripDiv.style.transition = `top ${duration}ms cubic-bezier(.17,.67,.83,.67)`;
+            stripDiv.style.top = finalTop + "px";
+          }, delay);
+          setTimeout(() => {
+            let html = '';
+            for (let i = 0; i < visibleRows; i++) {
+              html += `<div class="sprite"><img src="${symbols[finalSymbols[i]].img}" alt=""></div>`;
+            }
+            stripDiv.innerHTML = html;
+            stripDiv.style.transition = "none";
+            stripDiv.style.top = "0px";
+            resolve();
+          }, duration + delay);
+        });
+      }
+      function showGrid(grid) {
+        for (let reel = 0; reel < reelsCount; reel++) {
+          const stripDiv = document.querySelector(`#reel${reel} .reel-strip`);
+          let html = '';
+          for (let row = 0; row < visibleRows; row++) {
+            html += `<div class="sprite"><img src="${symbols[grid[reel][row]].img}" alt=""></div>`;
+          }
+          stripDiv.innerHTML = html;
+          stripDiv.style.top = "0px";
+          stripDiv.style.transition = "none";
+        }
+      }
+      // PAYOUT EVALUATION
+      function evaluatePayout(grid, bet, activePaylines) {
+        let totalWin = 0;
+        let winLines = [];
+        for (let i = 0; i < activePaylines; i++) {
+          const line = paylines[i];
+          const s0 = grid[line[0][0]][line[0][1]];
+          const s1 = grid[line[1][0]][line[1][1]];
+          const s2 = grid[line[2][0]][line[2][1]];
+          if (s0 === s1 && s1 === s2) {
+            const payout = symbols[s0].payouts[2] * bet;
+            totalWin += payout;
+            winLines.push({ payline: i, symbol: symbols[s0].display, payout, cells: line });
+            continue;
+          }
+          if (s0 === s1) {
+            const payout = symbols[s0].payouts[1] * bet;
+            if (payout > 0) {
+              totalWin += payout;
+              winLines.push({ payline: i, symbol: symbols[s0].display, payout, cells: [[line[0][0], line[0][1]], [line[1][0], line[1][1]]] });
+            }
+          }
+          if (s1 === s2 && s1 !== s0) {
+            const payout = symbols[s1].payouts[1] * bet;
+            if (payout > 0) {
+              totalWin += payout;
+              winLines.push({ payline: i, symbol: symbols[s1].display, payout, cells: [[line[1][0], line[1][1]], [line[2][0], line[2][1]]] });
+            }
+          }
+        }
+        return { totalWin, winLines };
+      }
+      // PAYOUT TABLE RENDER
+      function renderPayoutTable() {
+        let html = `<h2>Payout Table (per line, at $1 bet)</h2>
+        <div style="display: flex; font-weight: bold; margin-bottom: 8px;">
+          <span style="width:54px"></span>
+          <span style="min-width:120px;">Symbol</span>
+          <span style="width:70px;">2-in-line</span>
+          <span style="width:70px;">3-in-line</span>
+          <span style="width:70px;">Win%</span>
+          <span style="width:70px;">Loss%</span>
+        </div>`;
+        symbols.forEach(sym => {
+          html += `<div class="payout-table-row">
+            <img src="${sym.img}" alt="">
+            <span class="symbol-name">${sym.display}</span>
+            <span class="symbol-payout">$${sym.payouts[1].toFixed(2)}</span>
+            <span class="symbol-payout">$${sym.payouts[2].toFixed(2)}</span>
+            <span class="symbol-payout">${(sym.winChance*100).toFixed(1)}%</span>
+            <span class="symbol-payout">${(sym.lossChance*100).toFixed(1)}%</span>
+          </div>`;
+        });
+        document.getElementById('payoutTable').innerHTML = html;
+      }
+      renderPayoutTable();
+      // SYMBOL HIGHLIGHTING
+      function highlightWinningSymbols(winLines, grid) {
+        for (let reel = 0; reel < reelsCount; reel++) {
+          const stripDiv = document.querySelector(`#reel${reel} .reel-strip`);
+          const sprites = stripDiv.querySelectorAll('.sprite');
+          sprites.forEach(sprite => sprite.classList.remove('gold-highlight'));
+        }
+        winLines.forEach(wl => {
+          wl.cells.forEach(([reel, row]) => {
+            const stripDiv = document.querySelector(`#reel${reel} .reel-strip`);
+            const sprite = stripDiv.children[row];
+            if (sprite) sprite.classList.add('gold-highlight');
+          });
+        });
+      }
+      function clearWinningHighlights() {
+        for (let reel = 0; reel < reelsCount; reel++) {
+          const stripDiv = document.querySelector(`#reel${reel} .reel-strip`);
+          const sprites = stripDiv.querySelectorAll('.sprite');
+          sprites.forEach(sprite => sprite.classList.remove('gold-highlight'));
+        }
+      }
+      // SPIN BUTTON LOGIC
+      const spinBtn = document.getElementById('spinBtn');
+      spinBtn.onclick = async function() {
+        const bet = parseFloat(betSelect.value);
+        const activePaylines = parseInt(document.getElementById('paylinesAmount').value, 10);
+        const totalBet = bet * activePaylines;
+        if (balance < totalBet) {
+          showWinMsg("Insufficient balance!");
+          return;
+        }
+        setBalance(balance - totalBet);
+        spinBtn.disabled = true;
+        betSelect.disabled = true;
+        paylinesSelect.disabled = true;
+        renderPaylinesSVG(activePaylines, "bright");
+        clearWinningHighlights();
+        let grid = [];
+        for (let reel = 0; reel < reelsCount; reel++) {
+          grid[reel] = [];
+          for (let row = 0; row < visibleRows; row++) {
+            grid[reel][row] = getRandomSymbolIndex();
+          }
+        }
+        await Promise.all([
+          spinReel(0, [grid[0][0], grid[0][1], grid[0][2]], 1200, 0),
+          spinReel(1, [grid[1][0], grid[1][1], grid[1][2]], 1450, 120),
+          spinReel(2, [grid[2][0], grid[2][1], grid[2][2]], 1700, 240)
+        ]);
+        const { totalWin, winLines } = evaluatePayout(grid, bet, activePaylines);
+        const winningPaylineIndices = winLines.map(wl => wl.payline);
+        renderPaylinesSVG(activePaylines, "result", winningPaylineIndices);
+        highlightWinningSymbols(winLines, grid);
+        if (totalWin > 0) {
+          setBalance(balance + totalWin);
+          let msg = `You won $${totalWin.toFixed(2)}!`;
+          if (winLines.length > 1) {
+            msg += ` (${winLines.length} winning paylines)`;
+          }
+          showWinMsg(msg);
+        } else {
+          showWinMsg("No win. Try again!");
+        }
+        // DYNAMIC WIN/LOSS ALGO SWITCH CHECK
+        checkAlgoSwitch(balance);
+        spinBtn.disabled = false;
+        betSelect.disabled = false;
+        paylinesSelect.disabled = false;
+        setTimeout(() => {
+          renderPaylinesSVG(activePaylines, "faint");
+          clearWinningHighlights();
+        }, 2500);
+      };
+      function setupInitialUI() {
+        const grid = getRandomGrid();
+        showGrid(grid);
+        renderPaylinesSVG(parseInt(paylinesSelect.value, 10), "faint");
+        clearWinningHighlights();
+      }
+      setupInitialUI();
+      paylinesSelect.addEventListener('change', () => {
+        renderPaylinesSVG(parseInt(paylinesSelect.value, 10), "faint");
+        clearWinningHighlights();
+      });
+    }
+    // Show game UI only after loading screen is done
+    document.addEventListener("DOMContentLoaded", () => {
+      const observer = new MutationObserver(mutations => {
+        if (document.getElementById('game-container').style.display !== 'none') {
+          setupUI();
+          observer.disconnect();
+        }
+      });
+      observer.observe(document.getElementById('game-container'), { attributes: true });
+    });
   </script>
 </body>
 </html>
