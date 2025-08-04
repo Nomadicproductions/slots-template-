@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Poker Slots Game</title>
+  <style>
+    body {
+      background: #181f11;
+      min-height: 100vh;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      font-family: 'Segoe UI', Arial, sans-serif;
+    }
+    #loading-overlay {
+      position: fixed;
+      z-index: 9999;
+      top: 0; left: 0;
+      width: 100vw; height: 100vh;
+      background: none;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      transition: opacity 0.5s;
+    }
+    #progress-container {
+      width: 50vw;
+      max-width: 400px;
+      height: 32px;
+      background: rgba(0,0,0,0.3);
+      border-radius: 16px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+      margin-bottom: 24px;
+      overflow: hidden;
+    }
+    #progress-bar {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #ffd700 0%, #e25822 100%);
+      border-radius: 16px 0 0 16px;
+      transition: width 0.3s;
+    }
+    #progress-text {
+      color: #fffbe5;
+      font-size: 1.4em;
+      text-shadow: 1px 1px 5px #000;
+      font-family: 'Arial', sans-serif;
+    }
+    .slots-bg {
+      position: relative;
+      width: 700px;
+      height: 890px;
+      max-width: 100vw;
+      max-height: 100vh;
+      background: url('assets/file_0000000018e0622f964db4b9c027aeb1.png') no-repeat center center;
+      background-size: 690px 890px;
+      box-shadow: 0 6px 40px #011a, 0 1px 15px #000a inset;
+      margin-top: 40px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+      align-items: stretch;
+    }
+    .paylines-svg, .reels-area {
+      position: absolute;
+      left: 50%;
+      top: 48.2%;
+      width: 395px;
+      height: 215px;
+      transform: translate(-50%, -50%);
+    }
+    .paylines-svg {
+      z-index: 1;
+      pointer-events: none;
+    }
+    .reels-area {
+      z-index: 2;
+      display: flex;
+      justify-content: space-between;
+      pointer-events: none;
+    }
+    .reel-column { width: 120px; height: 215px; overflow: hidden; position: relative; display: flex; flex-direction: column; align-items: center; background: none; }
+    .reel-strip { position: absolute; top: 0; left: 0; width: 120px; transition: top 0.25s cubic-bezier(.22,1.5,.6,1); }
+    .sprite { width: 120px; height: 72px; display: flex; align-items: center; justify-content: center; pointer-events: none; box-sizing: border-box; }
+    .sprite img { max-width: 100%; max-height: 100%; display: block; image-rendering: pixelated; pointer-events: none; }
+    .sprite.gold-highlight { box-shadow: 0 0 12px 3px gold, 0 0 0 3px gold; border: 3px solid gold; border-radius: 12px; }
+    .bottom-ui { position: absolute; left: 0; right: 0; bottom: 42px; display: flex; justify-content: center; gap: 20px; z-index: 3; pointer-events: auto; }
+    .spin-btn { padding: 11px 35px; font-size: 1.25rem; background: linear-gradient(180deg, #ffed6b 60%, #ffbb32 100%); color: #222; border: none; border-radius: 16px; cursor: pointer; font-weight: bold; box-shadow: 0 2px 4px #0006, 0 1px 2px #fff7 inset; border: 2.5px solid #947d37; letter-spacing: 1.2px; transition: background 0.2s; }
+    .spin-btn:active { background: #ffe857; }
+    .spin-btn:disabled { background: #aaa; color: #888; cursor: not-allowed; border-color: #888; }
+    .balance-ui { padding: 8px 16px; border-radius: 8px; background: #233711d9; color: #fff; border: 1.5px solid #f9e46c77; font-weight: bold; font-size: 1.1rem; min-width: 110px; text-align: center; }
+    .bet-ui { padding: 8px 12px; border-radius: 8px; background: #233711d9; color: #fff; border: 1.5px solid #f9e46c77; font-weight: bold; font-size: 1.1rem; min-width: 110px; text-align: center; outline: none; }
+    .paylines-ui { padding: 8px 12px; border-radius: 8px; background: #233711d9; color: #fff; border: 1.5px solid #f9e46c77; font-weight: bold; font-size: 1.1rem; min-width: 110px; text-align: center; outline: none; }
+    .win-msg { position: absolute; width: 100%; top: 240px; left: 0; text-align: center; font-size: 1.7rem; color: #ffe857; font-weight: bold; text-shadow: 2px 2px 6px #000, 0 0 10px #947d37; z-index: 10; pointer-events: none; opacity: 0; transition: opacity 0.3s; }
+    .win-msg.show { opacity: 1; }
+    .payout-table {
+      margin-top: 30px;
+      background: #222f19;
+      color: #fff;
+      border-radius: 16px;
+      box-shadow: 0 2px 16px #0008;
+      padding: 20px 30px;
+      font-size: 1.15rem;
+      min-width: 340px;
+      max-width: 98vw;
+    }
+    .payout-table h2 { margin: 0 0 12px 0; font-size: 1.3rem; color: #ffed6b; }
+    .payout-table-row { display: flex; align-items: center; margin: 0 0 8px 0; }
+    .payout-table-row img { width: 48px; height: 48px; object-fit: contain; margin-right: 12px; border-radius: 6px; border: 1px solid #fff3; background: #181f11; }
+    .payout-table-row .symbol-name { min-width: 110px; }
+    .payout-table-row .symbol-payout { color: #ffed6b; font-weight: 600; margin-left: auto; }
+    #debug-algo {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background: rgba(0,0,0,0.7);
+      color: #fff;
+      padding: 8px 18px;
+      border-radius: 8px;
+      font-size: 1.05em;
+      z-index: 100;
+      min-width: 340px;
+      pointer-events: auto;
+      font-family: monospace;
+      box-shadow: 0 2px 6px #0007;
+      letter-spacing: 0.03em;
+      /* expanded width for new info */
+    }
+    #debug-algo b { color: #ffed6b; }
+    #debug-algo .debug-section { margin-bottom: 6px; }
+    #debug-algo .debug-section:last-child { margin-bottom: 0; }
+    #debug-algo .debug-label { color: #aaffb7; }
+    #debug-algo .debug-mode { font-size: 1.07em; }
+  </style>
+</head>
+<body>
+  <div id="loading-overlay">
+    <div id="progress-container">
+      <div id="progress-bar"></div>
+    </div>
+    <div id="progress-text">Loading... 0%</div>
+  </div>
+  <div id="game-container" style="display:none;">
+    <div class="slots-bg">
+      <div id="debug-algo">
+        <div class="debug-section"><span class="debug-label">Mode:</span> <b id="debug-mode">...</b></div>
+        <div class="debug-section"><span class="debug-label">Primary Threshold:</span> <b id="debug-thresh">...</b></div>
+        <div class="debug-section"><span class="debug-label">Start Bal:</span> <b id="debug-bal">...</b></div>
+        <div class="debug-section"><span class="debug-label">Secondary Mode:</span> <b id="debug-secondary-mode">...</b></div>
+        <div class="debug-section"><span class="debug-label">Sec. Threshold:</span> <b id="debug-sec-thresh">...</b></div>
+        <div class="debug-section"><span class="debug-label">Sec. Start Bal:</span> <b id="debug-sec-bal">...</b></div>
+      </div>
+      <svg class="paylines-svg" id="paylinesSVG" width="395" height="215"></svg>
+      <div class="win-msg" id="winMsg"></div>
+      <div class="reels-area" id="reelsArea">
+        <div class="reel-column" id="reel0"><div class="reel-strip"></div></div>
+        <div class="reel-column" id="reel1"><div class="reel-strip"></div></div>
+        <div class="reel-column" id="reel2"><div class="reel-strip"></div></div>
+      </div>
+      <div class="bottom-ui">
+        <div class="balance-ui" id="balance">Balance: $100.00</div>
+        <select class="bet-ui" id="betAmount"></select>
+        <button class="spin-btn" id="spinBtn">SPIN</button>
+      </div>
+    </div>
+    <div class="payout-table" id="payoutTable"></div>
+  </div>
+  <script>
+    // ===== LOADING SCREEN LOGIC =====
+    const assetImages = [
+      "assets/file_0000000018e0622f964db4b9c027aeb1.png",
+      "assets/057f11a8-11e6-4e40-8d76-f298b56b34c2_20250721_070426_0000.png",
+      "assets/124f55a4-4e21-47e9-9197-46aec56c349f_20250721_071451_0000.png",
+      "assets/7c4be13d-6cf7-44c1-aeaa-f7b78b339c4b_20250721_070802_0000.png",
+      "assets/d476a083-4634-460c-ba8d-d5fd1de22afb_20250721_070542_0000.png",
+      "assets/row-1-column-1 (1).png",
+      "assets/row-1-column-2 (1).png",
+      "assets/row-1-column-3 (1).png",
+      "assets/row-2-column-1 (1).png",
+      "assets/row-2-column-2 (1).png",
+      "assets/row-2-column-3 (1).png",
+      "assets/row-3-column-1 (1).png",
+      "assets/row-3-column-2 (1).png",
+      "assets/row-3-column-3 (1).png",
+      "assets/row-4-column-1.png",
+      "assets/row-4-column-2.png",
+      "assets/row-4-column-3.png"
+    ];
+    function preloadImages(imageUrls, onProgress, onComplete) {
+      let loaded = 0;
+      const total = imageUrls.length;
+      if (total === 0) { onComplete(); return; }
+      imageUrls.forEach(url => {
+        const img = new Image();
+        img.onload = img.onerror = () => {
+          loaded++;
+          onProgress(loaded, total);
+          if (loaded === total) onComplete();
+        };
+        img.src = url;
+      });
+    }
+    function updateProgressBar(loaded, total) {
+      const percent = Math.round((loaded / total) * 100);
+      document.getElementById("progress-bar").style.width = percent + "%";
+      document.getElementById("progress-text").textContent = `Loading... ${percent}%`;
+    }
+    function showGameContainer() {
+      const overlay = document.getElementById("loading-overlay");
+      overlay.style.opacity = 0;
+      setTimeout(() => {
+        overlay.style.display = "none";
+        document.getElementById("game-container").style.display = "";
+      }, 500);
+    }
+    window.addEventListener("DOMContentLoaded", () => {
+      preloadImages(assetImages, updateProgressBar, showGameContainer);
+    });
+
+    // ===== SLOTS GAME CODE =====
+    // === SYMBOLS DATA ===
+    const symbols = [
+      { name: '7c4be13d', img: 'assets/7c4be13d-6cf7-44c1-aeaa-f7b78b339c4b_20250721_070802_0000.png', payouts: [0, 2, 20], winChance: 0.05, lossChance: 0.01, winChance2: 0.13, lossChance2: 0.002, display: "Ace" },
+      { name: 'd476a083', img: 'assets/d476a083-4634-460c-ba8d-d5fd1de22afb_20250721_070542_0000.png', payouts: [0, 1.5, 15], winChance: 0.055, lossChance: 0.012, winChance2: 0.13, lossChance2: 0.002, display: "King" },
+      { name: '124f55a4', img: 'assets/124f55a4-4e21-47e9-9197-46aec56c349f_20250721_071451_0000.png', payouts: [0, 2, 20], winChance: 0.06, lossChance: 0.015, winChance2: 0.13, lossChance2: 0.002, display: "Queen" },
+      { name: '057f11a8', img: 'assets/057f11a8-11e6-4e40-8d76-f298b56b34c2_20250721_070426_0000.png', payouts: [0, 2.5, 25], winChance: 0.055, lossChance: 0.012, winChance2: 0.13, lossChance2: 0.002, display: "Hearts" },
+      { name: 'row-4-column-1 (1)', img: 'assets/row-4-column-1.png', payouts: [0, 2, 20], winChance: 0.06, lossChance: 0.015, winChance2: 0.13, lossChance2: 0.002, display: "Clubs" },
+      { name: 'row-4-column-2', img: 'assets/row-4-column-2.png', payouts: [0, 5, 50], winChance: 0.05, lossChance: 0.01, winChance2: 0.13, lossChance2: 0.002, display: "Diamonds" },
+      { name: 'row-4-column-3', img: 'assets/row-4-column-3.png', payouts: [0, 2, 20], winChance: 0.06, lossChance: 0.015, winChance2: 0.13, lossChance2: 0.002, display: "Spades" },
+      { name: 'row-1-column-1 (1)', img: 'assets/row-1-column-1 (1).png', payouts: [0, 1, 15], winChance: 0.07, lossChance: 0.03, winChance2: 0.13, lossChance2: 0.002, display: "1" },
+      { name: 'row-1-column-2 (1)', img: 'assets/row-1-column-2 (1).png', payouts: [0, 1, 15], winChance: 0.07, lossChance: 0.03, winChance2: 0.13, lossChance2: 0.002, display: "2" },
+      { name: 'row-1-column-3 (1)', img: 'assets/row-1-column-3 (1).png', payouts: [0, 1, 15], winChance: 0.07, lossChance: 0.03, winChance2: 0.13, lossChance2: 0.002, display: "3" },
+      { name: 'row-2-column-1 (1)', img: 'assets/row-2-column-1 (1).png', payouts: [0, 1, 15], winChance: 0.07, lossChance: 0.03, winChance2: 0.13, lossChance2: 0.002, display: "4" },
+      { name: 'row-2-column-2 (1)', img: 'assets/row-2-column-2 (1).png', payouts: [0, 1, 15], winChance: 0.07, lossChance: 0.03, winChance2: 0.13, lossChance2: 0.002, display: "5" },
+      { name: 'row-2-column-3 (1)', img: 'assets/row-2-column-3 (1).png', payouts: [0, 1, 15], winChance: 0.07, lossChance: 0.03, winChance2: 0.13, lossChance2: 0.002, display: "6" },
+      { name: 'row-3-column-1 (1)', img: 'assets/row-3-column-1 (1).png', payouts: [0, 1, 15], winChance: 0.07, lossChance: 0.03, winChance2: 0.13, lossChance2: 0.002, display: "7" },
+      { name: 'row-3-column-2 (1)', img: 'assets/row-3-column-2 (1).png', payouts: [0, 1, 15], winChance: 0.07, lossChance: 0.03, winChance2: 0.13, lossChance2: 0.002, display: "8" },
+      { name: 'row-3-column-3 (1)', img: 'assets/row-3-column-3 (1).png', payouts: [0, 1, 15], winChance: 0.07, lossChance: 0.03, winChance2: 0.13, lossChance2: 0.002, display: "9" }
+    ];
+
+    // --- DYNAMIC WIN/LOSS/SECONDARY MODES ALGORITHM STATE ---
+    // MODES: 'win', 'loss', 'win2', 'loss2'
+    let algoMode = "loss";
+    let switchThreshold = getRandomThreshold(); // primary threshold
+    let balanceAtSwitch = 100.00;
+
+    let secondaryMode = null; // 'win2', 'loss2' or null
+    let secondarySwitchThreshold = null;
+    let secondaryBalanceAtSwitch = null;
+
+    function getRandomThreshold() {
+      return +(Math.random() * (20 - 1.5) + 1.5).toFixed(2);
+    }
+    function getRandomSecondaryThreshold() {
+      return +(Math.random() * (4 - 2) + 2).toFixed(2);
+    }
+
+    function updateDebugDisplay() {
+      // Mode
+      let modeStr = algoMode.toUpperCase();
+      document.getElementById('debug-mode').textContent = modeStr;
+      // Primary threshold
+      document.getElementById('debug-thresh').textContent =
+        (algoMode.startsWith('win') ? `+${switchThreshold.toFixed(2)}` : `-${switchThreshold.toFixed(2)}`);
+      // Primary balance start
+      document.getElementById('debug-bal').textContent = `$${balanceAtSwitch.toFixed(2)}`;
+      // Secondary mode
+      if (secondaryMode) {
+        document.getElementById('debug-secondary-mode').textContent =
+          secondaryMode === "win2" ? "WIN BOOSTED" : "LOSS DECREASED";
+      } else {
+        document.getElementById('debug-secondary-mode').textContent = 'NONE';
+      }
+      // Secondary threshold (show relevant if in secondary, otherwise show next possible)
+      if (secondaryMode) {
+        document.getElementById('debug-sec-thresh').textContent =
+          (secondaryMode === "win2"
+           ? `-${secondarySwitchThreshold !== null ? secondarySwitchThreshold.toFixed(2) : "--"}`
+           : `+${secondarySwitchThreshold !== null ? secondarySwitchThreshold.toFixed(2) : "--"}`);
+        document.getElementById('debug-sec-bal').textContent =
+          secondaryBalanceAtSwitch !== null ? `$${secondaryBalanceAtSwitch.toFixed(2)}` : "--";
+      } else {
+        document.getElementById('debug-sec-thresh').textContent =
+          (algoMode === "win"
+           ? `-${secondarySwitchThreshold !== null ? secondarySwitchThreshold.toFixed(2) : "--"}`
+           : algoMode === "loss"
+           ? `+${secondarySwitchThreshold !== null ? secondarySwitchThreshold.toFixed(2) : "--"}`
+           : "--");
+        document.getElementById('debug-sec-bal').textContent = "--";
+      }
+    }
+
+    function pickNextSwitch(balance) {
+      balanceAtSwitch = balance;
+      switchThreshold = getRandomThreshold();
+      // When mode changes, reset secondary states
+      secondaryMode = null;
+      secondarySwitchThreshold = getRandomSecondaryThreshold();
+      secondaryBalanceAtSwitch = null;
+      updateDebugDisplay();
+    }
+    function checkAlgoSwitch(currentBalance) {
+      const diff = currentBalance - balanceAtSwitch;
+      // Primary switching logic
+      if ((algoMode === "win" || algoMode === "win2") && diff >= switchThreshold) {
+        algoMode = "loss";
+        pickNextSwitch(currentBalance);
+      } else if ((algoMode === "loss" || algoMode === "loss2") && diff <= -switchThreshold) {
+        algoMode = "win";
+        pickNextSwitch(currentBalance);
+      }
+      // Only run secondary check if not just switched primary mode
+      // Secondary mode logic for win mode
+      if (algoMode === "win") {
+        // If not in win2, see if secondary win mode should activate
+        if (!secondaryMode) {
+          // If balance drops below secondary threshold from start of win mode
+          if ((balanceAtSwitch - currentBalance) >= secondarySwitchThreshold) {
+            secondaryMode = "win2";
+            secondaryBalanceAtSwitch = currentBalance;
+            updateDebugDisplay();
+          }
+        }
+      }
+      // Secondary mode logic for loss mode
+      if (algoMode === "loss") {
+        // If not in loss2, see if secondary loss mode should activate
+        if (!secondaryMode) {
+          // If balance increases above secondary threshold from start of loss mode
+          if ((currentBalance - balanceAtSwitch) >= secondarySwitchThreshold) {
+            secondaryMode = "loss2";
+            secondaryBalanceAtSwitch = currentBalance;
+            updateDebugDisplay();
+          }
+        }
+      }
+      updateDebugDisplay();
+    }
+
+    function getRandomSymbolIndex() {
+      // Determine which mode we're in: win, loss, win2, loss2
+      let mode = algoMode;
+      if (secondaryMode) {
+        mode = secondaryMode;
+      }
+      let totalChance = 0;
+      // Chose correct chance field for this mode
+      for (const s of symbols) {
+        if (mode === "win")      totalChance += s.winChance;
+        else if (mode === "loss") totalChance += s.lossChance;
+        else if (mode === "win2") totalChance += s.winChance2;
+        else if (mode === "loss2") totalChance += s.lossChance2;
+      }
+      let r = Math.random() * totalChance;
+      let acc = 0;
+      for (let i = 0; i < symbols.length; i++) {
+        if (mode === "win")      acc += symbols[i].winChance;
+        else if (mode === "loss") acc += symbols[i].lossChance;
+        else if (mode === "win2") acc += symbols[i].winChance2;
+        else if (mode === "loss2") acc += symbols[i].lossChance2;
+        if (r < acc) return i;
+      }
+      return symbols.length - 1;
+    }
+
+    // --- Paylines and UI Setup ---
+    const paylines = [
+      [ [0,1], [1,1], [2,1] ],
+      [ [0,0], [1,0], [2,0] ],
+      [ [0,2], [1,2], [2,2] ],
+      [ [0,0], [1,1], [2,2] ],
+      [ [0,2], [1,1], [2,0] ]
+    ];
+    const paylineColors = [
+      "#1e88e5", "#e53935", "#43a047", "#fb8c00", "#8e24aa"
+    ];
+    const reelsCount = 3, visibleRows = 3;
+    function getRandomGrid() {
+      const grid = [];
+      for (let reel = 0; reel < reelsCount; reel++) {
+        const col = [];
+        for (let row = 0; row < visibleRows; row++) {
+          col.push(getRandomSymbolIndex());
+        }
+        grid.push(col);
+      }
+      return grid;
+    }
+    function setupUI() {
+      const betSelect = document.getElementById('betAmount');
+      for (let i = 1; i <= 10; i++) {
+        let v = (i * 0.2).toFixed(2);
+        betSelect.innerHTML += `<option value="${v}">$${v}</option>`;
+      }
+      const paylinesSelect = document.createElement('select');
+      paylinesSelect.className = "paylines-ui";
+      paylinesSelect.id = "paylinesAmount";
+      for (let i = 1; i <= 5; i++) {
+        paylinesSelect.innerHTML += `<option value="${i}">${i} Payline${i > 1 ? "s" : ""}</option>`;
+      }
+      document.querySelector('.bottom-ui').insertBefore(paylinesSelect, betSelect.nextSibling);
+
+      let balance = 100.00;
+      function setBalance(val) {
+        balance = Math.round(val * 100) / 100;
+        document.getElementById('balance').textContent = "Balance: $" + balance.toFixed(2);
+      }
+      setBalance(balance);
+      updateDebugDisplay();
+
+      const winMsgEl = document.getElementById("winMsg");
+      function showWinMsg(msg) {
+        winMsgEl.textContent = msg;
+        winMsgEl.classList.add("show");
+        setTimeout(() => winMsgEl.classList.remove("show"), 2500);
+      }
+      function getCellCenter(reel, row) {
+        const x = (reel * (395/3)) + (395/6);
+        const y = row * 72 + 36;
+        return { x, y };
+      }
+      function renderPaylinesSVG(activeCount, state = "faint", winningIndices = []) {
+        const svg = document.getElementById('paylinesSVG');
+        svg.innerHTML = '';
+        for (let i = 0; i < paylines.length; i++) {
+          if (i >= activeCount) continue;
+          const color = paylineColors[i];
+          let alpha = 0.33;
+          let strokeWidth = 4;
+          if (state === "bright" || (state === "result" && winningIndices.includes(i))) {
+            alpha = 1.0;
+            strokeWidth = 7;
+          }
+          else if (state === "result") {
+            alpha = 0.33;
+            strokeWidth = 4;
+          }
+          const pts = paylines[i].map(([reel, row]) => getCellCenter(reel, row));
+          const pointsStr = pts.map(pt => `${pt.x},${pt.y}`).join(' ');
+          svg.innerHTML += `<polyline points="${pointsStr}" 
+            style="fill:none;stroke:${color};stroke-width:${strokeWidth};stroke-linecap:round;stroke-linejoin:round;stroke-opacity:${alpha};" />`;
+        }
+      }
+      function spinReel(reelIdx, finalSymbols, duration = 1400, delay = 0) {
+        return new Promise(resolve => {
+          const stripDiv = document.querySelector(`#reel${reelIdx} .reel-strip`);
+          let html = '';
+          for (let i = 0; i < visibleRows * 5; i++) {
+            const idx = getRandomSymbolIndex();
+            html += `<div class="sprite"><img src="${symbols[idx].img}" alt=""></div>`;
+          }
+          for (let i = 0; i < visibleRows; i++) {
+            html += `<div class="sprite"><img src="${symbols[finalSymbols[i]].img}" alt=""></div>`;
+          }
+          stripDiv.innerHTML = html;
+          const spriteHeight = 72;
+          const steps = (html.match(/<div class="sprite">/g) || []).length - visibleRows;
+          const finalTop = -steps * spriteHeight;
+          stripDiv.style.transition = "none";
+          stripDiv.style.top = "0px";
+          setTimeout(() => {
+            stripDiv.style.transition = `top ${duration}ms cubic-bezier(.17,.67,.83,.67)`;
+            stripDiv.style.top = finalTop + "px";
+          }, delay);
+          setTimeout(() => {
+            let html = '';
+            for (let i = 0; i < visibleRows; i++) {
+              html += `<div class="sprite"><img src="${symbols[finalSymbols[i]].img}" alt=""></div>`;
+            }
+            stripDiv.innerHTML = html;
+            stripDiv.style.transition = "none";
+            stripDiv.style.top = "0px";
+            resolve();
+          }, duration + delay);
+        });
+      }
+      function showGrid(grid) {
+        for (let reel = 0; reel < reelsCount; reel++) {
+          const stripDiv = document.querySelector(`#reel${reel} .reel-strip`);
+          let html = '';
+          for (let row = 0; row < visibleRows; row++) {
+            html += `<div class="sprite"><img src="${symbols[grid[reel][row]].img}" alt=""></div>`;
+          }
+          stripDiv.innerHTML = html;
+          stripDiv.style.top = "0px";
+          stripDiv.style.transition = "none";
+        }
+      }
+      function evaluatePayout(grid, bet, activePaylines) {
+        let totalWin = 0;
+        let winLines = [];
+        for (let i = 0; i < activePaylines; i++) {
+          const line = paylines[i];
+          const s0 = grid[line[0][0]][line[0][1]];
+          const s1 = grid[line[1][0]][line[1][1]];
+          const s2 = grid[line[2][0]][line[2][1]];
+          if (s0 === s1 && s1 === s2) {
+            const payout = symbols[s0].payouts[2] * bet;
+            totalWin += payout;
+            winLines.push({ payline: i, symbol: symbols[s0].display, payout, cells: line });
+            continue;
+          }
+          if (s0 === s1) {
+            const payout = symbols[s0].payouts[1] * bet;
+            if (payout > 0) {
+              totalWin += payout;
+              winLines.push({ payline: i, symbol: symbols[s0].display, payout, cells: [[line[0][0], line[0][1]], [line[1][0], line[1][1]]] });
+            }
+          }
+          if (s1 === s2 && s1 !== s0) {
+            const payout = symbols[s1].payouts[1] * bet;
+            if (payout > 0) {
+              totalWin += payout;
+              winLines.push({ payline: i, symbol: symbols[s1].display, payout, cells: [[line[1][0], line[1][1]], [line[2][0], line[2][1]]] });
+            }
+          }
+        }
+        return { totalWin, winLines };
+      }
+      function renderPayoutTable() {
+        let html = `<h2>Payout Table (per line, at $1 bet)</h2>
+        <div style="display: flex; font-weight: bold; margin-bottom: 8px;">
+          <span style="width:54px"></span>
+          <span style="min-width:120px;">Symbol</span>
+          <span style="width:70px;">2-in-line</span>
+          <span style="width:70px;">3-in-line</span>
+          <span style="width:70px;">Win%</span>
+          <span style="width:70px;">Loss%</span>
+          <span style="width:70px;">Win2%</span>
+          <span style="width:70px;">Loss2%</span>
+        </div>`;
+        symbols.forEach(sym => {
+          html += `<div class="payout-table-row">
+            <img src="${sym.img}" alt="">
+            <span class="symbol-name">${sym.display}</span>
+            <span class="symbol-payout">$${sym.payouts[1].toFixed(2)}</span>
+            <span class="symbol-payout">$${sym.payouts[2].toFixed(2)}</span>
+            <span class="symbol-payout">${(sym.winChance*100).toFixed(1)}%</span>
+            <span class="symbol-payout">${(sym.lossChance*100).toFixed(1)}%</span>
+            <span class="symbol-payout">${(sym.winChance2*100).toFixed(1)}%</span>
+            <span class="symbol-payout">${(sym.lossChance2*100).toFixed(1)}%</span>
+          </div>`;
+        });
+        document.getElementById('payoutTable').innerHTML = html;
+      }
+      renderPayoutTable();
+      function highlightWinningSymbols(winLines, grid) {
+        for (let reel = 0; reel < reelsCount; reel++) {
+          const stripDiv = document.querySelector(`#reel${reel} .reel-strip`);
+          const sprites = stripDiv.querySelectorAll('.sprite');
+          sprites.forEach(sprite => sprite.classList.remove('gold-highlight'));
+        }
+        winLines.forEach(wl => {
+          wl.cells.forEach(([reel, row]) => {
+            const stripDiv = document.querySelector(`#reel${reel} .reel-strip`);
+            const sprite = stripDiv.children[row];
+            if (sprite) sprite.classList.add('gold-highlight');
+          });
+        });
+      }
+      function clearWinningHighlights() {
+        for (let reel = 0; reel < reelsCount; reel++) {
+          const stripDiv = document.querySelector(`#reel${reel} .reel-strip`);
+          const sprites = stripDiv.querySelectorAll('.sprite');
+          sprites.forEach(sprite => sprite.classList.remove('gold-highlight'));
+        }
+      }
+      const spinBtn = document.getElementById('spinBtn');
+      spinBtn.onclick = async function() {
+        const bet = parseFloat(betSelect.value);
+        const activePaylines = parseInt(document.getElementById('paylinesAmount').value, 10);
+        const totalBet = bet * activePaylines;
+        if (balance < totalBet) {
+          showWinMsg("Insufficient balance!");
+          return;
+        }
+        setBalance(balance - totalBet);
+        spinBtn.disabled = true;
+        betSelect.disabled = true;
+        paylinesSelect.disabled = true;
+        renderPaylinesSVG(activePaylines, "bright");
+        clearWinningHighlights();
+        let grid = [];
+        for (let reel = 0; reel < reelsCount; reel++) {
+          grid[reel] = [];
+          for (let row = 0; row < visibleRows; row++) {
+            grid[reel][row] = getRandomSymbolIndex();
+          }
+        }
+        await Promise.all([
+          spinReel(0, [grid[0][0], grid[0][1], grid[0][2]], 1200, 0),
+          spinReel(1, [grid[1][0], grid[1][1], grid[1][2]], 1450, 120),
+          spinReel(2, [grid[2][0], grid[2][1], grid[2][2]], 1700, 240)
+        ]);
+        const { totalWin, winLines } = evaluatePayout(grid, bet, activePaylines);
+        const winningPaylineIndices = winLines.map(wl => wl.payline);
+        renderPaylinesSVG(activePaylines, "result", winningPaylineIndices);
+        highlightWinningSymbols(winLines, grid);
+        if (totalWin > 0) {
+          setBalance(balance + totalWin);
+          let msg = `You won $${totalWin.toFixed(2)}!`;
+          if (winLines.length > 1) {
+            msg += ` (${winLines.length} winning paylines)`;
+          }
+          showWinMsg(msg);
+        } else {
+          showWinMsg("No win. Try again!");
+        }
+        checkAlgoSwitch(balance);
+        spinBtn.disabled = false;
+        betSelect.disabled = false;
+        paylinesSelect.disabled = false;
+        setTimeout(() => {
+          renderPaylinesSVG(activePaylines, "faint");
+          clearWinningHighlights();
+        }, 2500);
+      };
+      function setupInitialUI() {
+        const grid = getRandomGrid();
+        showGrid(grid);
+        renderPaylinesSVG(parseInt(paylinesSelect.value, 10), "faint");
+        clearWinningHighlights();
+      }
+      setupInitialUI();
+      paylinesSelect.addEventListener('change', () => {
+        renderPaylinesSVG(parseInt(paylinesSelect.value, 10), "faint");
+        clearWinningHighlights();
+      });
+    }
+    document.addEventListener("DOMContentLoaded", () => {
+      const observer = new MutationObserver(mutations => {
+        if (document.getElementById('game-container').style.display !== 'none') {
+          setupUI();
+          observer.disconnect();
+        }
+      });
+      observer.observe(document.getElementById('game-container'), { attributes: true });
+    });
+  </script>
+</body>
+</html>
